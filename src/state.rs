@@ -1,4 +1,8 @@
-use pinocchio::{error::ProgramError, Address, ProgramResult};
+use pinocchio::{
+    account::{Ref, RefMut},
+    error::ProgramError,
+    AccountView, Address, ProgramResult,
+};
 use solana_address::address_eq;
 
 // 此结构体使用了零填充, 消除了对齐要求, 所有内容都以 1 对齐, 因为除了 state 以外, 所有字段都是 [u8; N]
@@ -34,16 +38,88 @@ impl Config {
     pub const LEN: usize = size_of::<Config>();
 
     // Related functions
+    // 从账户加载 Config 实例的引用, 自行进行边界检查
+    // 如果有同一个账户在多处被借用, 使用这个 Ref<Config> 可以避免同时可变借用(即有一个地方引用了, 就不能再次可变引用了)
     #[inline(always)]
-    pub fn a() {}
+    pub fn load<'a>(account_view: &'a AccountView) -> Result<Ref<'a, Self>, ProgramError> {
+        // 验证字节长度
+        if account_view.data_len() != Self::LEN {
+            return Err(ProgramError::InvalidAccountData);
+        }
 
-    // 从字节切片创建 Config 的引用, 不进行边界检查
-    #[inline(always)]
-    pub fn from_bytes_unchecked(bytes: &[u8]) -> &Self {
-        unsafe { &*(bytes.as_ptr() as *const Self) }
+        // 验证账户的所有者是否是当前程序
+        if unsafe { account_view.owner().ne(&crate::ID) } {
+            return Err(ProgramError::InvalidAccountOwner);
+        }
+
+        // 拿到账户的字节切片
+        let data = account_view.try_borrow()?;
+
+        // 把 data 的数据隐射到新的 Ref 上, 并包装成 Config 实例
+        // 可以防止函数结束时 data 被释放造成的悬垂指针
+        Ok(Ref::map(data, |bytes| unsafe {
+            Self::from_bytes_unchecked(bytes)
+        }))
     }
 
-    // Utils
+    // 从账户加载 Config 实例的可变引用
+    pub fn load_mut<'a>(account_view: &'a AccountView) -> Result<RefMut<'a, Self>, ProgramError> {
+        if account_view.data_len() != Self::LEN {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        if unsafe { account_view.owner().ne(&crate::ID) } {
+            return Err(ProgramError::InvalidAccountOwner);
+        }
+
+        let data = account_view.try_borrow_mut()?;
+
+        Ok(RefMut::map(data, |bytes| unsafe {
+            Self::from_bytes_unchecked_mut(bytes)
+        }))
+    }
+
+    // 和 load 的作用一样, 但是不进行边界检查, 需用户自行保证安全问题
+    pub fn load_unchecked(account_view: &AccountView) -> Result<&Self, ProgramError> {
+        if account_view.data_len() != Self::LEN {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        if unsafe { account_view.owner().ne(&crate::ID) } {
+            return Err(ProgramError::InvalidAccountOwner);
+        }
+
+        let data = unsafe { account_view.borrow_unchecked() };
+        Ok(unsafe { Self::from_bytes_unchecked(data) })
+    }
+
+    // 和 load_unchecked 的作用一样, 只不过返回的是可变引用
+    pub fn load_unchecked_mut(account_view: &AccountView) -> Result<&mut Self, ProgramError> {
+        if account_view.data_len() != Self::LEN {
+            return Err(ProgramError::InvalidAccountData);
+        }
+
+        if unsafe { account_view.owner().ne(&crate::ID) } {
+            return Err(ProgramError::InvalidAccountOwner);
+        }
+
+        let data = unsafe { account_view.borrow_unchecked_mut() };
+        Ok(unsafe { Self::from_bytes_unchecked_mut(data) })
+    }
+
+    // 从对齐为 1 字节的切片创建 Config 的引用, 不进行边界检查
+    #[inline(always)]
+    pub unsafe fn from_bytes_unchecked(bytes: &[u8]) -> &Self {
+        &*(bytes.as_ptr() as *const Self)
+    }
+
+    // 从对齐为 1 字节的切片创建 Config 的可变引用, 不进行边界检查
+    #[inline(always)]
+    pub unsafe fn from_bytes_unchecked_mut(bytes: &[u8]) -> &mut Self {
+        &mut *(bytes.as_ptr() as *mut Self)
+    }
+
+    // Methods
     #[inline(always)]
     pub fn has_authority(&self) -> Option<Address> {
         // let ptr: *const Address = &raw const self.authority;
