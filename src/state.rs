@@ -124,11 +124,12 @@ impl Config {
     pub fn has_authority(&self) -> Option<Address> {
         // let ptr: *const Address = &raw const self.authority;
         // let authority = self.authority();
+        //
         // 转换为 u8 数组, 进行对比的时候须要 32 个逐个对比
         // let auth1 = unsafe { &*(authority.to_bytes().as_ptr() as *const [u8; 32]) };
         //
         // 转换为 u64 数组, SIMD(单指令多数据; Single Instruction Multiple Data) 友好, 性能更高(一条 CPU 指令处理多个数据)
-        // auth1[0] 包涵 bytes[0..8], 一次操作既可验证 8 个字节, 以此类推总共只需 4 此操作
+        // auth1[0] 包含 bytes[0..8], 一次操作既可验证 8 个字节, 以此类推总共只需 4 此操作
         // let auth2 = unsafe { &*(authority.to_bytes().as_ptr() as *const [u64; 4]) };
         //
         // 使用 read_unaligned 直接把内容拷贝了一份到栈上, 后续读取的这个值和原来的值地址无关
