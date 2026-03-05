@@ -2,7 +2,15 @@ use core::{
     mem::MaybeUninit,
     ptr::{copy_nonoverlapping, write_bytes},
 };
-use pinocchio::{error::ProgramError, AccountView, Address};
+use pinocchio::{
+    cpi::{Seed, Signer},
+    error::ProgramError,
+    sysvars::{rent::Rent, Sysvar},
+    AccountView, Address, ProgramResult,
+};
+use pinocchio_system::instructions::CreateAccount;
+
+use crate::state::Config;
 
 /**
  * 初始化 Config 账户, 存储 AMM 所需的信息
@@ -108,13 +116,45 @@ impl<'a> TryFrom<(&'a [u8], &'a [AccountView])> for Initialize<'a> {
         let accounts = InitializeAccounts::try_from(accounts)?;
         let instruction_data = InitializeInstructionData::try_from(data)?;
 
-        // 创建 config 账户
-
-        // 创建 LP mint 账户
-
         Ok(Self {
             accounts,
             instruction_data,
         })
+    }
+}
+
+impl<'a> Initialize<'a> {
+    pub fn process(&self) -> ProgramResult {
+        let instruction_data = &self.instruction_data;
+        let accounts = &self.accounts;
+        let rent = Rent::get()?;
+
+        // 创建 config 账户
+        let config_lamports = rent.try_minimum_balance(Config::LEN)?;
+        // 须要 PDA 种子签名才能创建 PDA 账户
+        // 其中须要使用 token x mint 和 token y mint 的地址作为种子
+        // 以这对 token pair 确定池子配置的唯一性
+        let seed_binding = instruction_data.seed.to_le_bytes();
+        let config_bump_binding = instruction_data.config_bump.to_le_bytes();
+        let config_seeds = [
+            Seed::from(b"config"),
+            Seed::from(&seed_binding),
+            Seed::from(instruction_data.mint_x.as_ref()),
+            Seed::from(instruction_data.mint_y.as_ref()),
+            Seed::from(&config_bump_binding),
+        ];
+        let config_signer = Signer::from(&config_seeds);
+
+        CreateAccount {
+            from: accounts.initializer,
+            to: accounts.config,
+            lamports: config_lamports,
+            space: Config::LEN as u64,
+            owner: &crate::ID,
+        }
+        .invoke_signed(&[config_signer])?;
+
+        // 创建 LP mint 账户
+        Ok(())
     }
 }
