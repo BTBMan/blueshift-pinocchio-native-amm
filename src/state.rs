@@ -235,7 +235,6 @@ impl Config {
     #[inline(always)]
     pub fn set_inner(
         &mut self,
-        state: u8,
         seed: u64,
         authority: Address,
         mint_x: Address,
@@ -243,7 +242,7 @@ impl Config {
         fee: u16,
         config_bump: [u8; 1],
     ) -> ProgramResult {
-        self.set_state(state)?;
+        self.set_state(AmmState::Initialized as u8)?;
         self.set_seed(seed);
         self.set_authority(authority);
         self.set_mint_x(mint_x);

@@ -9,6 +9,7 @@ use pinocchio::{
     AccountView, Address, ProgramResult,
 };
 use pinocchio_system::instructions::CreateAccount;
+use pinocchio_token::{instructions::InitializeMint2, state::Mint};
 
 use crate::state::Config;
 
@@ -124,6 +125,8 @@ impl<'a> TryFrom<(&'a [u8], &'a [AccountView])> for Initialize<'a> {
 }
 
 impl<'a> Initialize<'a> {
+    pub const DISCRIMINATOR: &'a u8 = &0;
+
     pub fn process(&self) -> ProgramResult {
         let instruction_data = &self.instruction_data;
         let accounts = &self.accounts;
@@ -132,7 +135,7 @@ impl<'a> Initialize<'a> {
         // 创建 config 账户
         let config_lamports = rent.try_minimum_balance(Config::LEN)?;
         // 须要 PDA 种子签名才能创建 PDA 账户
-        // 其中须要使用 token x mint 和 token y mint 的地址作为种子
+        // 其中需要使用 token x mint 和 token y mint 的地址作为种子
         // 以这对 token pair 确定池子配置的唯一性
         let seed_binding = instruction_data.seed.to_le_bytes();
         let config_bump_binding = instruction_data.config_bump.to_le_bytes();
@@ -154,7 +157,48 @@ impl<'a> Initialize<'a> {
         }
         .invoke_signed(&[config_signer])?;
 
+        // 将数据填充到 config 账户中
+        let config_account = Config::load_unchecked_mut(accounts.config)?;
+        config_account.set_inner(
+            instruction_data.seed,
+            instruction_data.authority.clone(),
+            instruction_data.mint_x.clone(),
+            instruction_data.mint_y.clone(),
+            instruction_data.fee,
+            config_bump_binding,
+        )?;
+
         // 创建 LP mint 账户
+        // 首先创建一个普通的账户
+        let lp_bump_binding = instruction_data.lp_bump.to_le_bytes();
+        // 其中需要使用 config 账户地址作为种子, 确定池子的 lp token 的唯一性
+        let mint_lp_seeds = [
+            Seed::from(b"mint_lp"),
+            Seed::from(self.accounts.config.address().as_ref()),
+            Seed::from(&lp_bump_binding),
+        ];
+        let mint_lp_signer = Signer::from(&mint_lp_seeds);
+        // 计算创建 mint lp 所需的 lamports
+        let mint_lp_lamports = rent.try_minimum_balance(Mint::LEN)?;
+
+        CreateAccount {
+            from: accounts.initializer,
+            to: accounts.mint_lp,
+            lamports: mint_lp_lamports,
+            space: Mint::LEN as u64,
+            owner: &pinocchio_token::ID,
+        }
+        .invoke_signed(&[mint_lp_signer])?;
+
+        // 使用 InitializeMint2 指令初始化 mint lp 账户
+        InitializeMint2 {
+            mint: accounts.mint_lp,
+            decimals: 6, // 根据目前 lp token 的小数位数
+            mint_authority: accounts.config.address(),
+            freeze_authority: None,
+        }
+        .invoke()?;
+
         Ok(())
     }
 }
