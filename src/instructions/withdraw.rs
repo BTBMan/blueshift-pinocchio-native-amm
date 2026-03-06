@@ -1,7 +1,7 @@
-use core::slice::from_ref;
-
-use constant_product_curve::ConstantProduct;
 // 根据用户希望销毁的 lp 数量, 提取相对应的 token x 和 token y
+use crate::state::{AmmState, Config};
+use constant_product_curve::ConstantProduct;
+use core::slice::from_ref;
 use pinocchio::{
     cpi::{Seed, Signer},
     error::ProgramError,
@@ -12,8 +12,6 @@ use pinocchio_token::{
     instructions::{Burn, Transfer},
     state::{Mint, TokenAccount},
 };
-
-use crate::state::{AmmState, Config};
 
 pub struct WithdrawAccounts<'a> {
     // 用户即 signer
@@ -27,14 +25,13 @@ pub struct WithdrawAccounts<'a> {
     user_y_ata: &'a AccountView,
     user_lp_ata: &'a AccountView,
     config: &'a AccountView,
-    token_program: &'a AccountView,
 }
 
 impl<'a> TryFrom<&'a [AccountView]> for WithdrawAccounts<'a> {
     type Error = ProgramError;
 
     fn try_from(accounts: &'a [AccountView]) -> Result<Self, Self::Error> {
-        let mut account_iter = accounts.into_iter();
+        let mut account_iter = accounts.iter();
 
         Ok(Self {
             user: account_iter
@@ -59,9 +56,6 @@ impl<'a> TryFrom<&'a [AccountView]> for WithdrawAccounts<'a> {
                 .next()
                 .ok_or(ProgramError::NotEnoughAccountKeys)?,
             config: account_iter
-                .next()
-                .ok_or(ProgramError::NotEnoughAccountKeys)?,
-            token_program: account_iter
                 .next()
                 .ok_or(ProgramError::NotEnoughAccountKeys)?,
         })

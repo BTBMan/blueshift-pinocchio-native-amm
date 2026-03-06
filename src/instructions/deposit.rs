@@ -1,6 +1,6 @@
 // 存款
 // 存入 mint x 或 mint y 代币获取 mint lp
-
+use crate::state::Config;
 use constant_product_curve::ConstantProduct;
 use pinocchio::{
     cpi::{Seed, Signer},
@@ -12,8 +12,6 @@ use pinocchio_token::{
     instructions::{MintTo, Transfer},
     state::{Mint, TokenAccount},
 };
-
-use crate::state::Config;
 
 pub struct DepositAccounts<'a> {
     // 存入代币的用户, 必须是 signer

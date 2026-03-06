@@ -1,3 +1,4 @@
+use crate::state::Config;
 use core::{
     mem::MaybeUninit,
     ptr::{copy_nonoverlapping, write_bytes},
@@ -10,8 +11,6 @@ use pinocchio::{
 };
 use pinocchio_system::instructions::CreateAccount;
 use pinocchio_token::{instructions::InitializeMint2, state::Mint};
-
-use crate::state::Config;
 
 /**
  * 初始化 Config 账户, 存储 AMM 所需的信息
