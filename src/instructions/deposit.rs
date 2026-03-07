@@ -35,7 +35,7 @@ impl<'a> TryFrom<&'a [AccountView]> for DepositAccounts<'a> {
     type Error = ProgramError;
 
     fn try_from(accounts: &'a [AccountView]) -> Result<Self, Self::Error> {
-        let [user, mint_lp, vault_x, vault_y, user_x_ata, user_y_ata, user_lp_ata, config, token_program, _] =
+        let [user, mint_lp, vault_x, vault_y, user_x_ata, user_y_ata, user_lp_ata, config, token_program, ..] =
             accounts
         else {
             return Err(ProgramError::NotEnoughAccountKeys);

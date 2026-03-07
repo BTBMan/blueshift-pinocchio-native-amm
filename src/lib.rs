@@ -1,14 +1,11 @@
-#![no_std]
-
 use pinocchio::{
     address::{declare_id, Address},
     entrypoint,
     error::ProgramError,
-    nostd_panic_handler, AccountView, ProgramResult,
+    AccountView, ProgramResult,
 };
 
 entrypoint!(process_instruction);
-nostd_panic_handler!();
 
 pub mod instructions;
 pub mod state;

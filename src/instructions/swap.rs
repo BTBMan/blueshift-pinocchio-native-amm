@@ -143,6 +143,7 @@ impl<'a> Swap<'a> {
 
         // 进行 token 转账操作
         if instruction_data.is_x {
+            // 用户发送 token x
             Transfer {
                 from: accounts.user_x_ata,
                 to: accounts.vault_x,
@@ -151,14 +152,16 @@ impl<'a> Swap<'a> {
             }
             .invoke()?;
 
+            // 池子发送 token y
             Transfer {
-                from: accounts.vault_x,
-                to: accounts.user_x_ata,
+                from: accounts.vault_y,
+                to: accounts.user_y_ata,
                 authority: accounts.config,
                 amount: swap_result.withdraw,
             }
             .invoke_signed(&[config_signer])?;
         } else {
+            // 用户发送 token y
             Transfer {
                 from: accounts.user_y_ata,
                 to: accounts.vault_y,
@@ -167,9 +170,10 @@ impl<'a> Swap<'a> {
             }
             .invoke()?;
 
+            // 池子发送 token x
             Transfer {
-                from: accounts.vault_y,
-                to: accounts.user_y_ata,
+                from: accounts.vault_x,
+                to: accounts.user_x_ata,
                 authority: accounts.config,
                 amount: swap_result.withdraw,
             }
